@@ -1,6 +1,8 @@
 import { fail, ok, route } from "@/lib/api";
 import { sendPushToAll } from "@/lib/push";
 
+export const runtime = "nodejs";
+
 /**
  * Sends a real push through the exact delivery path reminders use, so a green
  * result here means timed reminders will also arrive.

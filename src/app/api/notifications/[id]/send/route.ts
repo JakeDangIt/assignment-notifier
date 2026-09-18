@@ -1,6 +1,8 @@
 import { fail, ok, route } from "@/lib/api";
 import { deliverNotification } from "@/lib/delivery";
 
+export const runtime = "nodejs";
+
 type Ctx = { params: Promise<{ id: string }> };
 
 export const POST = route(async (_request: Request, { params }: Ctx) => {

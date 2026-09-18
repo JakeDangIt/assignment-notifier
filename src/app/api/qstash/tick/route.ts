@@ -2,6 +2,8 @@ import { fail, ok, requireSession, route } from "@/lib/api";
 import { verifyQstashSignature } from "@/lib/qstash";
 import { runTick } from "@/lib/tick";
 
+export const runtime = "nodejs";
+
 export const POST = route(
   async (request: Request) => {
     const bodyText = await request.text();
