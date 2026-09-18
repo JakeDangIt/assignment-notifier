@@ -43,11 +43,13 @@ export function iosSupportsWebPush(version: { major: number; minor: number } | n
  * Converts a base64url VAPID public key into the Uint8Array that
  * `PushManager.subscribe` expects for `applicationServerKey`.
  */
-export function urlBase64ToUint8Array(base64UrlString: string): Uint8Array {
+// Explicitly backed by ArrayBuffer (not ArrayBufferLike) so it satisfies the
+// BufferSource that PushManager.subscribe expects.
+export function urlBase64ToUint8Array(base64UrlString: string): Uint8Array<ArrayBuffer> {
   const padding = "=".repeat((4 - (base64UrlString.length % 4)) % 4);
   const base64 = (base64UrlString + padding).replace(/-/g, "+").replace(/_/g, "/");
   const raw = atob(base64);
-  const output = new Uint8Array(raw.length);
+  const output = new Uint8Array(new ArrayBuffer(raw.length));
   for (let i = 0; i < raw.length; i++) {
     output[i] = raw.charCodeAt(i);
   }

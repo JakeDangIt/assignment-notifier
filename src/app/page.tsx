@@ -1,4 +1,5 @@
 import { InstallStatus } from "@/components/InstallStatus";
+import { NotificationSetup } from "@/components/NotificationSetup";
 import { PwaDiagnostics } from "@/components/PwaDiagnostics";
 import { SignOutButton } from "@/components/SignOutButton";
 
@@ -17,6 +18,7 @@ export default function HomePage() {
 
       <div className="space-y-4">
         <InstallStatus />
+        <NotificationSetup />
         <PwaDiagnostics />
       </div>
     </main>

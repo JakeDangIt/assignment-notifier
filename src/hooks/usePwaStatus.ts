@@ -88,9 +88,26 @@ export function usePwaStatus(): PwaStatus {
     displayModeQuery.addEventListener("change", refresh);
     document.addEventListener("visibilitychange", refresh);
 
+    // `Notification.permission` is a snapshot, so granting permission in-page
+    // would otherwise leave the reported value stale until the next visibility
+    // change. The Permissions API gives us a change event where it's supported.
+    let permissionStatus: PermissionStatus | undefined;
+    if ("permissions" in navigator) {
+      navigator.permissions
+        .query({ name: "notifications" as PermissionName })
+        .then((result) => {
+          permissionStatus = result;
+          result.addEventListener("change", refresh);
+        })
+        .catch(() => {
+          // Safari rejects some permission names; the fallbacks above still apply.
+        });
+    }
+
     return () => {
       displayModeQuery.removeEventListener("change", refresh);
       document.removeEventListener("visibilitychange", refresh);
+      permissionStatus?.removeEventListener("change", refresh);
     };
   }, []);
 
