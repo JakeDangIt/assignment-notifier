@@ -1,0 +1,73 @@
+@import "tailwindcss";
+
+@theme {
+  --color-canvas: #0b1020;
+  --color-surface: #141a2e;
+  --color-surface-raised: #1c2340;
+  --color-border: #2a3354;
+  --color-border-strong: #3a4670;
+
+  --color-ink: #eef1f8;
+  --color-ink-muted: #9aa5c4;
+  --color-ink-subtle: #6b769a;
+
+  --color-accent: #6366f1;
+  --color-accent-strong: #4f46e5;
+  --color-accent-soft: #312e81;
+
+  --color-danger: #f87171;
+  --color-danger-soft: #451f28;
+  --color-warning: #fbbf24;
+  --color-warning-soft: #422c06;
+  --color-success: #34d399;
+  --color-success-soft: #06342a;
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  background-color: var(--color-canvas);
+  color: var(--color-ink);
+}
+
+body {
+  font-family: var(--font-sans);
+  /* Keeps the layout clear of the notch and home indicator when the PWA runs
+     standalone on iOS. Paired with viewportFit: "cover" in the layout. */
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* iOS standalone mode lets long-press text selection feel like a broken native
+   app; allow it only where content is genuinely readable text. */
+@media (display-mode: standalone) {
+  body {
+    user-select: none;
+  }
+
+  p,
+  textarea,
+  input {
+    user-select: text;
+  }
+}
+
+@utility safe-bottom {
+  padding-bottom: calc(env(safe-area-inset-bottom) + var(--spacing) * 3);
+}
+
+@utility safe-top {
+  padding-top: calc(env(safe-area-inset-top) + var(--spacing) * 3);
+}
+
+/* Native-feeling date/time pickers on a dark surface. */
+input[type="datetime-local"],
+input[type="date"],
+input[type="time"] {
+  color-scheme: dark;
+}
