@@ -1,4 +1,3 @@
-/* eslint-disable no-undef */
 /**
  * Service worker for Assignment Reminders.
  *
