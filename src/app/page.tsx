@@ -1,26 +1,21 @@
-import { InstallStatus } from "@/components/InstallStatus";
-import { NotificationSetup } from "@/components/NotificationSetup";
-import { PwaDiagnostics } from "@/components/PwaDiagnostics";
-import { SignOutButton } from "@/components/SignOutButton";
+import { AssignmentFab, AssignmentList, NewAssignmentButton } from "@/components/AssignmentList";
+import { AppShell } from "@/components/AppShell";
+import { listAssignments } from "@/lib/assignments/service";
+import { getSettings } from "@/lib/settings";
 
-export default function HomePage() {
+export const dynamic = "force-dynamic";
+
+export default async function HomePage() {
+  const [items, settings] = await Promise.all([listAssignments(), getSettings()]);
+
   return (
-    <main className="mx-auto w-full max-w-lg px-4 safe-top safe-bottom">
-      <header className="mb-6 flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Assignment Reminders</h1>
-          <p className="mt-1 text-sm text-ink-muted">
-            Timed push reminders before every due date.
-          </p>
-        </div>
-        <SignOutButton />
-      </header>
-
-      <div className="space-y-4">
-        <InstallStatus />
-        <NotificationSetup />
-        <PwaDiagnostics />
-      </div>
-    </main>
+    <AppShell
+      title="Assignments"
+      subtitle="What's due, grouped by when."
+      action={<NewAssignmentButton />}
+    >
+      <AssignmentList initial={items} timezone={settings.timezone} />
+      <AssignmentFab />
+    </AppShell>
   );
 }
