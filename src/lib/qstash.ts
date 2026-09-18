@@ -7,7 +7,7 @@ function getClient(): Client {
   if (!token) {
     throw new Error("QSTASH_TOKEN is not set");
   }
-  return new Client({ token });
+  return new Client({ token, baseUrl: env.qstashUrl });
 }
 
 export async function publishAt(

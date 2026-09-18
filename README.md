@@ -9,7 +9,7 @@ Stack: Next.js App Router, TypeScript, Tailwind, Drizzle, Neon (or any Postgres)
 Three free-tier accounts. **Do not paste the values into chat** — put them in Vercel env vars or `.env.local`.
 
 1. **Neon** — a Postgres project. Copy the **pooled** connection string (the host contains `-pooler`).
-2. **Upstash QStash** — `QSTASH_TOKEN`, `QSTASH_CURRENT_SIGNING_KEY`, `QSTASH_NEXT_SIGNING_KEY` from the QStash console.
+2. **Upstash QStash** — `QSTASH_TOKEN`, `QSTASH_CURRENT_SIGNING_KEY`, `QSTASH_NEXT_SIGNING_KEY` from the QStash console. If the console region is **US**, also set `QSTASH_URL=https://qstash-us-east-1.upstash.io` (the SDK otherwise talks to EU and 404s).
 3. **Vercel** — a project connected to this repo.
 
 You also generate a VAPID keypair on your machine (this is *not* an account):
@@ -70,6 +70,7 @@ npx vercel env add VAPID_SUBJECT
 npx vercel env add QSTASH_TOKEN
 npx vercel env add QSTASH_CURRENT_SIGNING_KEY
 npx vercel env add QSTASH_NEXT_SIGNING_KEY
+npx vercel env add QSTASH_URL
 npx vercel env add APP_BASE_URL
 npx vercel --prod
 ```

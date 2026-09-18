@@ -55,6 +55,14 @@ export const env = {
   get qstashToken() {
     return optional("QSTASH_TOKEN");
   },
+  /**
+   * Regional QStash API. The SDK's default (`https://qstash.upstash.io`) is the
+   * EU cluster. A US-console token then fails with "user not found in this
+   * region (eu-central-1)". US accounts must use the us-east-1 URL.
+   */
+  get qstashUrl() {
+    return optional("QSTASH_URL") ?? "https://qstash-us-east-1.upstash.io";
+  },
   get qstashCurrentSigningKey() {
     return optional("QSTASH_CURRENT_SIGNING_KEY");
   },
