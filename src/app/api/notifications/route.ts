@@ -1,7 +1,6 @@
 import { desc, eq } from "drizzle-orm";
 import { ok, route } from "@/lib/api";
 import { assignments, db, notificationDeliveries, scheduledNotifications } from "@/lib/db";
-import { deliverNotification } from "@/lib/delivery";
 
 export const GET = route(async () => {
   const rows = await db
