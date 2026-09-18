@@ -1,17 +1,43 @@
 import { AppShell } from "@/components/AppShell";
-import { Card } from "@/components/ui";
+import { DeliveryLog } from "@/components/DeliveryLog";
+import { db, scheduledNotifications, assignments } from "@/lib/db";
+import { desc, eq } from "drizzle-orm";
+import { getSettings } from "@/lib/settings";
 
+export const dynamic = "force-dynamic";
 export const metadata = { title: "Delivery log" };
 
-export default function LogPage() {
+export default async function LogPage() {
+  const settings = await getSettings();
+  const rows = await db
+    .select({
+      id: scheduledNotifications.id,
+      assignmentId: scheduledNotifications.assignmentId,
+      assignmentTitle: assignments.title,
+      fireAt: scheduledNotifications.fireAt,
+      originalFireAt: scheduledNotifications.originalFireAt,
+      status: scheduledNotifications.status,
+      reason: scheduledNotifications.reason,
+      attempts: scheduledNotifications.attempts,
+      lastError: scheduledNotifications.lastError,
+      sentAt: scheduledNotifications.sentAt,
+    })
+    .from(scheduledNotifications)
+    .leftJoin(assignments, eq(assignments.id, scheduledNotifications.assignmentId))
+    .orderBy(desc(scheduledNotifications.fireAt))
+    .limit(200);
+
   return (
     <AppShell title="Delivery log" subtitle="Sent, pending, and failed reminders.">
-      <Card>
-        <p className="text-sm text-ink-muted">
-          The log fills in once timed delivery is wired up. Create an assignment in the meantime —
-          it will show up here after the first reminder fires.
-        </p>
-      </Card>
+      <DeliveryLog
+        timezone={settings.timezone}
+        initial={rows.map((row) => ({
+          ...row,
+          fireAt: row.fireAt.toISOString(),
+          originalFireAt: row.originalFireAt?.toISOString() ?? null,
+          sentAt: row.sentAt?.toISOString() ?? null,
+        }))}
+      />
     </AppShell>
   );
 }
