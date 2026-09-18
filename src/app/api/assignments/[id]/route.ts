@@ -1,7 +1,7 @@
 import { fail, ok, route } from "@/lib/api";
 import {
   assignmentWriteSchema,
-  getAssignment,
+  getAssignmentDetails,
   softDeleteAssignment,
   toAssignmentDTO,
   updateAssignment,
@@ -11,9 +11,9 @@ type Ctx = { params: Promise<{ id: string }> };
 
 export const GET = route(async (_request: Request, { params }: Ctx) => {
   const { id } = await params;
-  const row = await getAssignment(id);
-  if (!row) return fail(404, "Assignment not found");
-  return ok({ assignment: toAssignmentDTO(row) });
+  const details = await getAssignmentDetails(id);
+  if (!details) return fail(404, "Assignment not found");
+  return ok(details);
 });
 
 export const PATCH = route(async (request: Request, { params }: Ctx) => {
