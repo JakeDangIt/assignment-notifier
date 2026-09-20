@@ -1,7 +1,7 @@
 import "server-only";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { db, assignments, scheduledNotifications, type ScheduledNotification } from "@/lib/db";
-import { sendPushToAll, type PushPayload } from "@/lib/push";
+import { sendPushToUser, type PushPayload } from "@/lib/push";
 import { formatWhen } from "@/lib/format";
 import { getSettings } from "@/lib/settings";
 
@@ -14,9 +14,16 @@ export type DeliveryOutcome = {
  * Atomically claims a notification and (if still valid) fans it out over web
  * push. Shared by the QStash webhook and the session-authenticated "send now"
  * button so both paths have the same idempotency guarantees.
+ *
+ * QStash has no Neon session: the scheduled row's `user_id` selects which
+ * subscriptions receive the push. When `onlyUserId` is set (send now), the
+ * claim itself refuses another user's row.
  */
-export async function deliverNotification(notificationId: string): Promise<DeliveryOutcome> {
-  const claimed = await claim(notificationId);
+export async function deliverNotification(
+  notificationId: string,
+  options: { onlyUserId?: string } = {},
+): Promise<DeliveryOutcome> {
+  const claimed = await claim(notificationId, options.onlyUserId);
   if (!claimed) {
     return { status: "noop", detail: "Already handled or not found" };
   }
@@ -32,11 +39,17 @@ export async function deliverNotification(notificationId: string): Promise<Deliv
     return { status: "canceled", detail: "Assignment is complete or deleted" };
   }
 
-  const settings = await getSettings();
+  const userId = claimed.userId ?? assignment.userId;
+  if (!userId) {
+    await finish(claimed.id, "failed", "Notification has no owner");
+    return { status: "failed", detail: "Notification has no owner" };
+  }
+
+  const settings = await getSettings(userId);
   const payload = renderPayload(assignment.title, assignment.dueAt, claimed, settings.timezone);
 
   try {
-    const result = await sendPushToAll(payload, { notificationId: claimed.id });
+    const result = await sendPushToUser(userId, payload, { notificationId: claimed.id });
 
     if (result.succeeded === 0) {
       const detail = result.errors.join("; ") || "No successful deliveries";
@@ -53,7 +66,7 @@ export async function deliverNotification(notificationId: string): Promise<Deliv
   }
 }
 
-async function claim(id: string): Promise<ScheduledNotification | undefined> {
+async function claim(id: string, onlyUserId?: string): Promise<ScheduledNotification | undefined> {
   const [row] = await db
     .update(scheduledNotifications)
     .set({
@@ -65,6 +78,7 @@ async function claim(id: string): Promise<ScheduledNotification | undefined> {
       and(
         eq(scheduledNotifications.id, id),
         inArray(scheduledNotifications.status, ["pending", "enqueued", "failed"]),
+        ...(onlyUserId ? [eq(scheduledNotifications.userId, onlyUserId)] : []),
       ),
     )
     .returning();

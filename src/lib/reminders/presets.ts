@@ -47,6 +47,24 @@ export function presetById(id: string): RulePreset | undefined {
   return RULE_PRESETS.find((preset) => preset.id === id);
 }
 
+/** Starter default-rule rows copied onto a brand-new user workspace. */
+export function starterDefaultRuleValues(userId?: string | null) {
+  return STARTER_DEFAULT_RULE_IDS.map((id, index) => {
+    const preset = presetById(id);
+    if (!preset) throw new Error(`Unknown preset id "${id}"`);
+
+    return {
+      userId: userId ?? null,
+      kind: preset.spec.kind,
+      offsetMinutes: preset.spec.kind === "offset" ? preset.spec.offsetMinutes : null,
+      dayOffset: preset.spec.kind === "time_of_day" ? preset.spec.dayOffset : null,
+      timeLocal: preset.spec.kind === "time_of_day" ? preset.spec.timeLocal : null,
+      label: preset.label,
+      sortOrder: index,
+    };
+  });
+}
+
 /** Renders an arbitrary minutes-before value, including ones with no preset. */
 export function formatOffsetLabel(offsetMinutes: number): string {
   if (offsetMinutes === 0) return "At due time";

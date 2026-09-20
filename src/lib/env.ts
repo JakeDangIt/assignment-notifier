@@ -43,9 +43,13 @@ export const env = {
   get neonAuthCookieSecret() {
     return required("NEON_AUTH_COOKIE_SECRET");
   },
-  /** Email of the only person allowed to use this app after a Neon sign-in. */
-  get ownerEmail() {
-    return required("OWNER_EMAIL");
+  /**
+   * Optional one-shot bootstrap: `npm run db:seed` attaches pre-tenancy
+   * orphaned rows (`user_id` IS NULL) to this Neon Auth user id. Leave unset
+   * to keep those rows unused so they never leak to new accounts.
+   */
+  get migrateToUserId() {
+    return optional("MIGRATE_TO_USER_ID");
   },
   get vapidPublicKey() {
     return required("NEXT_PUBLIC_VAPID_PUBLIC_KEY");

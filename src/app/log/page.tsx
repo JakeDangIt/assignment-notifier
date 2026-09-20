@@ -2,13 +2,15 @@ import { AppShell } from "@/components/AppShell";
 import { DeliveryLog } from "@/components/DeliveryLog";
 import { db, scheduledNotifications, assignments } from "@/lib/db";
 import { desc, eq } from "drizzle-orm";
+import { requirePageUser } from "@/lib/session";
 import { getSettings } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Delivery log" };
 
 export default async function LogPage() {
-  const settings = await getSettings();
+  const user = await requirePageUser();
+  const settings = await getSettings(user.id);
   const rows = await db
     .select({
       id: scheduledNotifications.id,
@@ -24,6 +26,7 @@ export default async function LogPage() {
     })
     .from(scheduledNotifications)
     .leftJoin(assignments, eq(assignments.id, scheduledNotifications.assignmentId))
+    .where(eq(scheduledNotifications.userId, user.id))
     .orderBy(desc(scheduledNotifications.fireAt))
     .limit(200);
 

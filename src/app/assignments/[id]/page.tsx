@@ -3,6 +3,7 @@ import { AppShell } from "@/components/AppShell";
 import { AssignmentForm } from "@/components/AssignmentForm";
 import { getAssignmentDetails } from "@/lib/assignments/service";
 import { formatDue } from "@/lib/format";
+import { requirePageUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -11,8 +12,9 @@ export default async function AssignmentPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const user = await requirePageUser();
   const { id } = await params;
-  const details = await getAssignmentDetails(id);
+  const details = await getAssignmentDetails(id, user.id);
   if (!details) notFound();
 
   return (

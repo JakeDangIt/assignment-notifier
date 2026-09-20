@@ -61,33 +61,34 @@ export function toAssignmentDTO(row: Assignment) {
   };
 }
 
-export async function listAssignments() {
+export async function listAssignments(userId: string) {
   const rows = await db
     .select()
     .from(assignments)
-    .where(isNull(assignments.deletedAt))
+    .where(and(eq(assignments.userId, userId), isNull(assignments.deletedAt)))
     .orderBy(assignments.dueAt, desc(assignments.createdAt));
 
   return rows.map(toAssignmentDTO);
 }
 
-export async function getAssignment(id: string) {
+export async function getAssignment(id: string, userId: string) {
   const [row] = await db
     .select()
     .from(assignments)
-    .where(and(eq(assignments.id, id), isNull(assignments.deletedAt)))
+    .where(and(eq(assignments.id, id), eq(assignments.userId, userId), isNull(assignments.deletedAt)))
     .limit(1);
 
   return row ?? null;
 }
 
-export async function createAssignment(input: AssignmentWrite) {
-  const settings = await getSettings();
+export async function createAssignment(userId: string, input: AssignmentWrite) {
+  const settings = await getSettings(userId);
   const dueAt = parseLocalDateTime(input.dueAtLocal, settings.timezone);
 
   const [row] = await db
     .insert(assignments)
     .values({
+      userId,
       title: input.title,
       description: emptyToNull(input.description),
       className: emptyToNull(input.className),
@@ -98,18 +99,18 @@ export async function createAssignment(input: AssignmentWrite) {
   if (input.rules) {
     await persistRules(row.id, input.rules, settings.timezone);
   } else {
-    await copyDefaultRules(row.id);
+    await copyDefaultRules(row.id, userId);
   }
 
   await syncPlan(row.id);
   return row;
 }
 
-export async function updateAssignment(id: string, input: AssignmentWrite) {
-  const existing = await getAssignment(id);
+export async function updateAssignment(id: string, userId: string, input: AssignmentWrite) {
+  const existing = await getAssignment(id, userId);
   if (!existing) return null;
 
-  const settings = await getSettings();
+  const settings = await getSettings(userId);
   const dueAt = parseLocalDateTime(input.dueAtLocal, settings.timezone);
 
   const [row] = await db
@@ -121,7 +122,7 @@ export async function updateAssignment(id: string, input: AssignmentWrite) {
       dueAt,
       updatedAt: new Date(),
     })
-    .where(eq(assignments.id, id))
+    .where(and(eq(assignments.id, id), eq(assignments.userId, userId)))
     .returning();
 
   if (input.rules) {
@@ -132,8 +133,8 @@ export async function updateAssignment(id: string, input: AssignmentWrite) {
   return row;
 }
 
-export async function completeAssignment(id: string, completed: boolean) {
-  const existing = await getAssignment(id);
+export async function completeAssignment(id: string, userId: string, completed: boolean) {
+  const existing = await getAssignment(id, userId);
   if (!existing) return null;
 
   const [row] = await db
@@ -142,32 +143,32 @@ export async function completeAssignment(id: string, completed: boolean) {
       completedAt: completed ? (existing.completedAt ?? new Date()) : null,
       updatedAt: new Date(),
     })
-    .where(eq(assignments.id, id))
+    .where(and(eq(assignments.id, id), eq(assignments.userId, userId)))
     .returning();
 
   await syncPlan(id);
   return row;
 }
 
-export async function softDeleteAssignment(id: string) {
-  const existing = await getAssignment(id);
+export async function softDeleteAssignment(id: string, userId: string) {
+  const existing = await getAssignment(id, userId);
   if (!existing) return null;
 
   const [row] = await db
     .update(assignments)
     .set({ deletedAt: new Date(), updatedAt: new Date() })
-    .where(eq(assignments.id, id))
+    .where(and(eq(assignments.id, id), eq(assignments.userId, userId)))
     .returning();
 
   await syncPlan(id);
   return row;
 }
 
-export async function getAssignmentDetails(id: string) {
-  const row = await getAssignment(id);
+export async function getAssignmentDetails(id: string, userId: string) {
+  const row = await getAssignment(id, userId);
   if (!row) return null;
 
-  const settings = await getSettings();
+  const settings = await getSettings(userId);
   const rules = await db
     .select()
     .from(reminderRules)

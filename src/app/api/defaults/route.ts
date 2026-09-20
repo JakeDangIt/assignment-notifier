@@ -1,8 +1,10 @@
-import { desc } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { ok, route } from "@/lib/api";
 import { db, defaultReminderRules } from "@/lib/db";
 import { describeRule } from "@/lib/reminders/presets";
+import { requireAppUser } from "@/lib/session";
+import { ensureUserWorkspace } from "@/lib/workspace";
 
 const ruleSchema = z.discriminatedUnion("kind", [
   z.object({
@@ -21,9 +23,12 @@ const ruleSchema = z.discriminatedUnion("kind", [
 ]);
 
 export const GET = route(async () => {
+  const user = await requireAppUser();
+  await ensureUserWorkspace(user.id);
   const rows = await db
     .select()
     .from(defaultReminderRules)
+    .where(eq(defaultReminderRules.userId, user.id))
     .orderBy(defaultReminderRules.sortOrder, desc(defaultReminderRules.createdAt));
 
   return ok({
@@ -41,15 +46,18 @@ export const GET = route(async () => {
 });
 
 export const PUT = route(async (request: Request) => {
+  const user = await requireAppUser();
+  await ensureUserWorkspace(user.id);
   const { rules } = z.object({ rules: z.array(ruleSchema) }).parse(await request.json());
 
-  await db.delete(defaultReminderRules);
+  await db.delete(defaultReminderRules).where(eq(defaultReminderRules.userId, user.id));
 
   if (rules.length > 0) {
     await db.insert(defaultReminderRules).values(
       rules.map((rule, index) =>
         rule.kind === "offset"
           ? {
+              userId: user.id,
               kind: "offset" as const,
               offsetMinutes: rule.offsetMinutes,
               label: rule.label ?? null,
@@ -57,6 +65,7 @@ export const PUT = route(async (request: Request) => {
               sortOrder: index,
             }
           : {
+              userId: user.id,
               kind: "time_of_day" as const,
               dayOffset: rule.dayOffset,
               timeLocal: rule.timeLocal.length === 5 ? `${rule.timeLocal}:00` : rule.timeLocal,
@@ -71,6 +80,7 @@ export const PUT = route(async (request: Request) => {
   const rows = await db
     .select()
     .from(defaultReminderRules)
+    .where(eq(defaultReminderRules.userId, user.id))
     .orderBy(defaultReminderRules.sortOrder);
 
   return ok({

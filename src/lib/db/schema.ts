@@ -7,7 +7,6 @@ import {
   jsonb,
   pgEnum,
   pgTable,
-  smallint,
   text,
   time,
   timestamp,
@@ -17,12 +16,18 @@ import {
 
 /**
  * All instants are stored as `timestamptz` (UTC). Wall-clock reasoning -- due
- * times, quiet hours, "9 PM the night before" -- happens in the single IANA
- * timezone configured in `settings.timezone`, never in the database.
+ * times, quiet hours, "9 PM the night before" -- happens in the IANA timezone
+ * configured on that user's `settings.timezone` row, never in the database.
+ *
+ * Tenant-owned tables carry `user_id` (Neon Auth user id, not email). Null
+ * means a pre-tenancy orphan; app queries always filter by the signed-in id,
+ * so orphans never leak to new accounts.
  */
 
 const createdAt = timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
 const updatedAt = timestamp("updated_at", { withTimezone: true }).notNull().defaultNow();
+/** Neon Auth `user.id`. Nullable only for leftover global rows. */
+const userId = text("user_id");
 
 // ---------------------------------------------------------------------------
 // Enums
@@ -80,14 +85,14 @@ export const substitutionStrategyEnum = pgEnum("substitution_strategy", [
 export const pastPolicyEnum = pgEnum("past_reminder_policy", ["fire_now", "skip"]);
 
 // ---------------------------------------------------------------------------
-// Settings (single row)
+// Settings (one row per user)
 // ---------------------------------------------------------------------------
 
 export const settings = pgTable(
   "settings",
   {
-    // Single-user app: the settings row is a singleton pinned to id = 1.
-    id: smallint("id").primaryKey().default(1),
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId,
     timezone: text("timezone").notNull().default("America/New_York"),
 
     quietEnabled: boolean("quiet_enabled").notNull().default(true),
@@ -110,7 +115,7 @@ export const settings = pgTable(
     updatedAt,
   },
   (table) => [
-    check("settings_singleton", sql`${table.id} = 1`),
+    uniqueIndex("settings_user_id_idx").on(table.userId),
     check("settings_dedupe_window_nonneg", sql`${table.dedupeWindowMinutes} >= 0`),
     check("settings_overdue_delay_nonneg", sql`${table.overdueNudgeDelayMinutes} >= 0`),
   ],
@@ -144,11 +149,12 @@ function ruleKindShapeCheck(name: string, table: {
   );
 }
 
-/** The user's default reminder set, auto-applied to every new assignment. */
+/** Each user's default reminder set, auto-applied to their new assignments. */
 export const defaultReminderRules = pgTable(
   "default_reminder_rules",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    userId,
     kind: ruleKindEnum("kind").notNull(),
     /** Minutes before the due time. `kind = 'offset'`. */
     offsetMinutes: integer("offset_minutes"),
@@ -163,6 +169,7 @@ export const defaultReminderRules = pgTable(
     updatedAt,
   },
   (table) => [
+    index("default_reminder_rules_user_idx").on(table.userId),
     // An absolute timestamp makes no sense as a reusable default.
     check("default_rule_kind_allowed", sql`${table.kind} IN ('offset', 'time_of_day')`),
     ruleKindShapeCheck("default_rule_shape", table),
@@ -173,6 +180,7 @@ export const assignments = pgTable(
   "assignments",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    userId,
     title: text("title").notNull(),
     description: text("description"),
     className: text("class_name"),
@@ -185,6 +193,7 @@ export const assignments = pgTable(
   },
   (table) => [
     index("assignments_due_at_idx").on(table.dueAt),
+    index("assignments_user_due_at_idx").on(table.userId, table.dueAt),
     check("assignments_title_not_blank", sql`length(trim(${table.title})) > 0`),
   ],
 );
@@ -237,6 +246,8 @@ export const scheduledNotifications = pgTable(
     assignmentId: uuid("assignment_id")
       .notNull()
       .references(() => assignments.id, { onDelete: "cascade" }),
+    /** Copied from the assignment so QStash can fan out without a session. */
+    userId,
     /** Null once the originating rule is deleted but the send already happened. */
     ruleId: uuid("rule_id").references(() => reminderRules.id, { onDelete: "set null" }),
 
@@ -261,6 +272,7 @@ export const scheduledNotifications = pgTable(
     // Drives the materialiser and sweeper queries.
     index("scheduled_notifications_status_fire_at_idx").on(table.status, table.fireAt),
     index("scheduled_notifications_assignment_idx").on(table.assignmentId),
+    index("scheduled_notifications_user_idx").on(table.userId),
     // Backstop for the engine's dedupe pass: two live reminders for one
     // assignment can never share an instant.
     uniqueIndex("scheduled_notifications_live_slot_idx")
@@ -277,6 +289,7 @@ export const pushSubscriptions = pgTable(
   "push_subscriptions",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    userId,
     endpoint: text("endpoint").notNull().unique(),
     p256dh: text("p256dh").notNull(),
     auth: text("auth").notNull(),
@@ -290,7 +303,10 @@ export const pushSubscriptions = pgTable(
     createdAt,
     updatedAt,
   },
-  (table) => [index("push_subscriptions_disabled_idx").on(table.disabledAt)],
+  (table) => [
+    index("push_subscriptions_disabled_idx").on(table.disabledAt),
+    index("push_subscriptions_user_idx").on(table.userId),
+  ],
 );
 
 /** Fan-out log: one notification goes to every active subscription. */

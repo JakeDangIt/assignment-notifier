@@ -52,27 +52,28 @@ function isGoneStatus(status: number | undefined): boolean {
   return status === 404 || status === 410;
 }
 
-export async function listActiveSubscriptions(): Promise<PushSubscriptionRow[]> {
+export async function listActiveSubscriptions(userId: string): Promise<PushSubscriptionRow[]> {
   return db
     .select()
     .from(pushSubscriptions)
-    .where(isNull(pushSubscriptions.disabledAt));
+    .where(and(eq(pushSubscriptions.userId, userId), isNull(pushSubscriptions.disabledAt)));
 }
 
 /**
- * Fans a payload out to every active subscription.
+ * Fans a payload out to one user's active subscriptions.
  *
  * When `notificationId` is supplied, one row per subscription is written to the
  * delivery log; the test notification omits it because it has no scheduled
  * notification to reference.
  */
-export async function sendPushToAll(
+export async function sendPushToUser(
+  userId: string,
   payload: PushPayload,
   options: { notificationId?: string } = {},
 ): Promise<PushResult> {
   configureVapid();
 
-  const subscriptions = await listActiveSubscriptions();
+  const subscriptions = await listActiveSubscriptions(userId);
   const result: PushResult = {
     attempted: subscriptions.length,
     succeeded: 0,

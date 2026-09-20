@@ -1,8 +1,10 @@
 import { desc, eq } from "drizzle-orm";
 import { ok, route } from "@/lib/api";
 import { assignments, db, notificationDeliveries, scheduledNotifications } from "@/lib/db";
+import { requireAppUser } from "@/lib/session";
 
 export const GET = route(async () => {
+  const user = await requireAppUser();
   const rows = await db
     .select({
       id: scheduledNotifications.id,
@@ -18,12 +20,26 @@ export const GET = route(async () => {
     })
     .from(scheduledNotifications)
     .leftJoin(assignments, eq(assignments.id, scheduledNotifications.assignmentId))
+    .where(eq(scheduledNotifications.userId, user.id))
     .orderBy(desc(scheduledNotifications.fireAt))
     .limit(200);
 
   const deliveries = await db
-    .select()
+    .select({
+      id: notificationDeliveries.id,
+      scheduledNotificationId: notificationDeliveries.scheduledNotificationId,
+      subscriptionId: notificationDeliveries.subscriptionId,
+      status: notificationDeliveries.status,
+      httpStatus: notificationDeliveries.httpStatus,
+      error: notificationDeliveries.error,
+      createdAt: notificationDeliveries.createdAt,
+    })
     .from(notificationDeliveries)
+    .innerJoin(
+      scheduledNotifications,
+      eq(scheduledNotifications.id, notificationDeliveries.scheduledNotificationId),
+    )
+    .where(eq(scheduledNotifications.userId, user.id))
     .orderBy(desc(notificationDeliveries.createdAt))
     .limit(200);
 

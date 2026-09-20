@@ -1,37 +1,58 @@
 import { eq, and, isNull } from "drizzle-orm";
 import { db, settings, assignments, type Settings } from "@/lib/db";
 import { syncPlan } from "@/lib/reminders/sync";
+import { assertUserId } from "@/lib/tenancy";
+import { ensureUserWorkspace } from "@/lib/workspace";
 
 /**
- * The settings row is a singleton (id = 1), created by the seed script. Every
- * reminder computation reads it, so a missing row is a setup error, not a
- * "use defaults" situation — silent defaults would hide a failed migration.
+ * One settings row per Neon Auth user, created on first request.
+ * Reminder computation always reads this user's row — never a global default
+ * and never another account's timezone/quiet hours.
  */
-export async function getSettings(): Promise<Settings> {
-  const row = await db.query.settings.findFirst({ where: eq(settings.id, 1) });
+export async function getSettings(userId: string): Promise<Settings> {
+  const id = assertUserId(userId);
+  await ensureUserWorkspace(id);
+
+  const row = await db.query.settings.findFirst({ where: eq(settings.userId, id) });
   if (!row) {
-    throw new Error("Settings row is missing. Run `npm run db:seed`.");
+    throw new Error(`Settings row is missing for user ${id}.`);
   }
   return row;
 }
 
-export async function updateSettings(patch: Partial<Omit<Settings, "id" | "createdAt">>) {
+export async function updateSettings(
+  userId: string,
+  patch: Partial<Omit<Settings, "id" | "userId" | "createdAt">>,
+) {
+  const id = assertUserId(userId);
+  await ensureUserWorkspace(id);
+
   const [row] = await db
     .update(settings)
     .set({ ...patch, updatedAt: new Date() })
-    .where(eq(settings.id, 1))
+    .where(eq(settings.userId, id))
     .returning();
 
-  await replanIncomplete();
+  if (!row) {
+    throw new Error(`Settings row is missing for user ${id}.`);
+  }
+  await replanIncomplete(id);
   return row;
 }
 
 /** Settings feed every computed instant, so a change must rebuild future plans. */
-export async function replanIncomplete() {
+export async function replanIncomplete(userId: string) {
+  const id = assertUserId(userId);
   const rows = await db
     .select({ id: assignments.id })
     .from(assignments)
-    .where(and(isNull(assignments.deletedAt), isNull(assignments.completedAt)));
+    .where(
+      and(
+        eq(assignments.userId, id),
+        isNull(assignments.deletedAt),
+        isNull(assignments.completedAt),
+      ),
+    );
 
   for (const row of rows) {
     await syncPlan(row.id);
