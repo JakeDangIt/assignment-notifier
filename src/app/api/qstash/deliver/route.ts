@@ -10,8 +10,10 @@ export const POST = route(
     const signed = await verifyQstashSignature(request, bodyText);
 
     if (!signed) {
+      // Owner UI (Send now is a different route). This webhook is
+      // signature-only for QStash; a Neon owner session is the manual fallback.
       const unauthorized = await requireSession();
-      if (unauthorized) return fail(401, "Unauthorized");
+      if (unauthorized) return unauthorized;
     }
 
     let notificationId: string | undefined;

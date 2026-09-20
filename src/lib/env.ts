@@ -37,11 +37,15 @@ export const env = {
   get databaseUrl() {
     return required("DATABASE_URL");
   },
-  get appPasscode() {
-    return required("APP_PASSCODE");
+  get neonAuthBaseUrl() {
+    return required("NEON_AUTH_BASE_URL");
   },
-  get sessionSecret() {
-    return required("SESSION_SECRET");
+  get neonAuthCookieSecret() {
+    return required("NEON_AUTH_COOKIE_SECRET");
+  },
+  /** Email of the only person allowed to use this app after a Neon sign-in. */
+  get ownerEmail() {
+    return required("OWNER_EMAIL");
   },
   get vapidPublicKey() {
     return required("NEXT_PUBLIC_VAPID_PUBLIC_KEY");
