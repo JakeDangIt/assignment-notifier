@@ -32,7 +32,13 @@ export async function syncPlan(assignmentId: string, now = new Date()) {
     .from(assignments)
     .where(eq(assignments.id, assignmentId))
     .limit(1);
-  const settings = await getSettings();
+
+  if (!assignment?.userId) {
+    await cancelLive(assignmentId);
+    return { planned: [], stored: [] as ScheduledNotification[] };
+  }
+
+  const settings = await getSettings(assignment.userId);
 
   if (!assignment || assignment.completedAt || assignment.deletedAt) {
     await cancelLive(assignmentId);
@@ -96,6 +102,7 @@ export async function syncPlan(assignmentId: string, now = new Date()) {
       .insert(scheduledNotifications)
       .values({
         assignmentId,
+        userId: assignment.userId,
         ruleId: item.ruleId,
         fireAt: item.fireAt,
         originalFireAt: item.originalFireAt,
@@ -202,12 +209,12 @@ export async function replaceRules(
     .returning();
 }
 
-export async function copyDefaultRules(assignmentId: string) {
+export async function copyDefaultRules(assignmentId: string, userId: string) {
   const { defaultReminderRules } = await import("@/lib/db");
   const defaults = await db
     .select()
     .from(defaultReminderRules)
-    .where(eq(defaultReminderRules.enabled, true));
+    .where(and(eq(defaultReminderRules.userId, userId), eq(defaultReminderRules.enabled, true)));
 
   return replaceRules(
     assignmentId,

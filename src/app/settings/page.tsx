@@ -4,6 +4,8 @@ import { NotificationSetup } from "@/components/NotificationSetup";
 import { PwaDiagnostics } from "@/components/PwaDiagnostics";
 import { SettingsForm } from "@/components/SettingsForm";
 import { db, defaultReminderRules } from "@/lib/db";
+import { eq } from "drizzle-orm";
+import { requirePageUser } from "@/lib/session";
 import { getSettings, serializeSettings } from "@/lib/settings";
 import { describeRule } from "@/lib/reminders/presets";
 
@@ -11,8 +13,13 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Settings" };
 
 export default async function SettingsPage() {
-  const settings = await getSettings();
-  const defaults = await db.select().from(defaultReminderRules).orderBy(defaultReminderRules.sortOrder);
+  const user = await requirePageUser();
+  const settings = await getSettings(user.id);
+  const defaults = await db
+    .select()
+    .from(defaultReminderRules)
+    .where(eq(defaultReminderRules.userId, user.id))
+    .orderBy(defaultReminderRules.sortOrder);
 
   return (
     <AppShell title="Settings" subtitle="Quiet hours, defaults, install, and notifications.">

@@ -1,7 +1,8 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { ok, route } from "@/lib/api";
 import { db, pushSubscriptions } from "@/lib/db";
+import { requireAppUser } from "@/lib/session";
 
 const bodySchema = z.object({
   subscription: z.object({
@@ -16,16 +17,19 @@ const bodySchema = z.object({
 });
 
 export const POST = route(async (request: Request) => {
+  const user = await requireAppUser();
   const { subscription, oldEndpoint } = bodySchema.parse(await request.json());
   const userAgent = request.headers.get("user-agent");
   const now = new Date();
 
   // Endpoints are stable identifiers, so re-subscribing on an existing device
   // updates the row (and clears any earlier `disabled_at`) instead of
-  // accumulating duplicates that would double-notify.
+  // accumulating duplicates that would double-notify. The current signed-in
+  // user takes ownership of the endpoint.
   const [row] = await db
     .insert(pushSubscriptions)
     .values({
+      userId: user.id,
       endpoint: subscription.endpoint,
       p256dh: subscription.keys.p256dh,
       auth: subscription.keys.auth,
@@ -35,6 +39,7 @@ export const POST = route(async (request: Request) => {
     .onConflictDoUpdate({
       target: pushSubscriptions.endpoint,
       set: {
+        userId: user.id,
         p256dh: subscription.keys.p256dh,
         auth: subscription.keys.auth,
         userAgent,
@@ -47,7 +52,11 @@ export const POST = route(async (request: Request) => {
     .returning({ id: pushSubscriptions.id });
 
   if (oldEndpoint && oldEndpoint !== subscription.endpoint) {
-    await db.delete(pushSubscriptions).where(eq(pushSubscriptions.endpoint, oldEndpoint));
+    await db
+      .delete(pushSubscriptions)
+      .where(
+        and(eq(pushSubscriptions.endpoint, oldEndpoint), eq(pushSubscriptions.userId, user.id)),
+      );
   }
 
   return ok({ id: row.id });

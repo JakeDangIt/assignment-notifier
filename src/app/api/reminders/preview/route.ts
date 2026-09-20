@@ -4,6 +4,7 @@ import { ruleInputSchema } from "@/lib/assignments/service";
 import { computePlan } from "@/lib/reminders";
 import { toEngineSettings } from "@/lib/reminders/map";
 import { getSettings } from "@/lib/settings";
+import { requireAppUser } from "@/lib/session";
 import { parseLocalDateTime } from "@/lib/time";
 
 const previewSchema = z.object({
@@ -12,8 +13,9 @@ const previewSchema = z.object({
 });
 
 export const POST = route(async (request: Request) => {
+  const user = await requireAppUser();
   const body = previewSchema.parse(await request.json());
-  const settings = await getSettings();
+  const settings = await getSettings(user.id);
   const dueAt = parseLocalDateTime(body.dueAtLocal, settings.timezone);
 
   const planned = computePlan({

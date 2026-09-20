@@ -1,13 +1,9 @@
-import {
-  NEON_AUTH_SESSION_DATA_COOKIE_NAME,
-  validateSessionData,
-} from "@neondatabase/auth/server";
 import { NextResponse, type NextRequest } from "next/server";
 import { auth } from "@/lib/auth";
-import { isOwnerEmail } from "@/lib/owner";
 
 /**
- * Gates the app behind a Neon Auth session, then behind OWNER_EMAIL.
+ * Gates the app behind a Neon Auth session. Any signed-in account can use
+ * the app; each user only sees their own assignments and notifications.
  *
  * Neon middleware already skips /api/auth and the sign-in/sign-up pages.
  * The extra public paths below are either signature-authenticated (QStash),
@@ -45,43 +41,6 @@ function isNeonPublic(pathname: string): boolean {
   );
 }
 
-function cookieFromSetCookie(headers: string[], name: string): string | undefined {
-  const prefix = `${name}=`;
-  for (const header of headers) {
-    if (header.startsWith(prefix)) {
-      const raw = header.slice(prefix.length).split(";")[0];
-      try {
-        return decodeURIComponent(raw);
-      } catch {
-        return raw;
-      }
-    }
-  }
-  return undefined;
-}
-
-async function sessionEmailFrom(
-  request: NextRequest,
-  response: NextResponse,
-): Promise<string | null> {
-  const secret = process.env.NEON_AUTH_COOKIE_SECRET;
-  if (!secret) return null;
-
-  const candidates = [
-    request.cookies.get(NEON_AUTH_SESSION_DATA_COOKIE_NAME)?.value,
-    cookieFromSetCookie(response.headers.getSetCookie(), NEON_AUTH_SESSION_DATA_COOKIE_NAME),
-  ];
-
-  for (const value of candidates) {
-    if (!value) continue;
-    const result = await validateSessionData(value, secret);
-    const email = result.payload?.user?.email;
-    if (typeof email === "string" && email.length > 0) return email;
-  }
-
-  return null;
-}
-
 export default async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -90,13 +49,6 @@ export default async function middleware(request: NextRequest) {
   if (!process.env.NEON_AUTH_BASE_URL || !process.env.NEON_AUTH_COOKIE_SECRET) {
     return NextResponse.json(
       { error: "Server is missing Neon Auth configuration" },
-      { status: 500 },
-    );
-  }
-
-  if (!process.env.OWNER_EMAIL) {
-    return NextResponse.json(
-      { error: "Server is missing OWNER_EMAIL" },
       { status: 500 },
     );
   }
@@ -110,24 +62,8 @@ export default async function middleware(request: NextRequest) {
     }
     return response;
   }
-  if (isNeonPublic(pathname)) return response;
 
-  const email = await sessionEmailFrom(request, response);
-  if (isOwnerEmail(email)) {
-    if (pathname === "/not-the-owner") {
-      return NextResponse.redirect(new URL("/", request.url));
-    }
-    return response;
-  }
-
-  // Signed in (Neon allowed the request) but not the owner.
-  if (pathname === "/not-the-owner") return response;
-
-  if (pathname.startsWith("/api/")) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
-
-  return NextResponse.redirect(new URL("/not-the-owner", request.url));
+  return response;
 }
 
 export const config = {

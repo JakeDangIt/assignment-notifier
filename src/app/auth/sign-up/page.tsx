@@ -8,7 +8,7 @@ export default function SignUpPage() {
       <div className="mb-8 text-center">
         <h1 className="text-2xl font-semibold tracking-tight">Create an account</h1>
         <p className="mt-1.5 text-sm text-ink-muted">
-          Anyone can register. Only the owner email can open the app.
+          Friends can create their own account. Each person only sees their assignments.
         </p>
       </div>
       <SignUpForm />

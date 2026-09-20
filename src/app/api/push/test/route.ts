@@ -1,5 +1,6 @@
 import { fail, ok, route } from "@/lib/api";
-import { sendPushToAll } from "@/lib/push";
+import { sendPushToUser } from "@/lib/push";
+import { requireAppUser } from "@/lib/session";
 
 export const runtime = "nodejs";
 
@@ -8,7 +9,8 @@ export const runtime = "nodejs";
  * result here means timed reminders will also arrive.
  */
 export const POST = route(async () => {
-  const result = await sendPushToAll({
+  const user = await requireAppUser();
+  const result = await sendPushToUser(user.id, {
     title: "Test notification",
     body: "Push is working. Reminders will arrive like this.",
     url: "/",

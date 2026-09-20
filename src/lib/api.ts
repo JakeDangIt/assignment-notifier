@@ -1,9 +1,8 @@
 import "server-only";
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
-import { auth } from "@/lib/auth";
-import { isOwnerEmail } from "@/lib/owner";
 import { env } from "@/lib/env";
+import { HttpError, requireAppUser, type AppUser } from "@/lib/session";
 
 /** Shared helpers so route handlers stay thin and respond consistently. */
 
@@ -21,17 +20,22 @@ export function fail(status: number, error: string, details?: unknown) {
  * bugs against Next middleware have shipped before, and a second check on
  * mutating endpoints is nearly free.
  *
- * A valid Neon session is not enough: the signed-in email must match
- * OWNER_EMAIL. Wrong-account callers get 403 rather than 401 so the client
- * can tell "not signed in" from "signed in as someone else".
+ * Any signed-in Neon account is enough. Tenant isolation happens in queries
+ * via `user.id`, not an email allowlist.
  *
- * Returns a 401/403 response to return early, or null when the caller is the owner.
+ * Returns a 401 response to return early, or the signed-in user.
  */
-export async function requireSession(): Promise<NextResponse | null> {
-  const { data: session } = await auth.getSession();
-  if (!session?.user) return fail(401, "Unauthorized");
-  if (!isOwnerEmail(session.user.email)) return fail(403, "Forbidden");
-  return null;
+export async function requireSession() {
+  try {
+    return await requireAppUser();
+  } catch (error) {
+    if (error instanceof HttpError) return fail(error.status, error.message);
+    throw error;
+  }
+}
+
+export function isAuthError(result: AppUser | NextResponse): result is NextResponse {
+  return result instanceof NextResponse;
 }
 
 /**
@@ -47,14 +51,17 @@ export function route<Args extends unknown[]>(
   return async (...args: Args): Promise<NextResponse> => {
     try {
       if (!options.public) {
-        const unauthorized = await requireSession();
-        if (unauthorized) return unauthorized;
+        const session = await requireSession();
+        if (isAuthError(session)) return session;
       }
 
       return await handler(...args);
     } catch (error) {
       if (error instanceof ZodError) {
         return fail(400, "Invalid request", error.issues);
+      }
+      if (error instanceof HttpError) {
+        return fail(error.status, error.message);
       }
 
       console.error("Unhandled route error", error);

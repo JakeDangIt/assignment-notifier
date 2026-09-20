@@ -21,7 +21,7 @@ export function SignUpForm() {
 
     try {
       const { error: signUpError } = await authClient.signUp.email({
-        name: name.trim() || email.split("@")[0] || "Owner",
+        name: name.trim() || email.split("@")[0] || "Friend",
         email,
         password,
       });

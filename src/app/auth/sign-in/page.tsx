@@ -9,7 +9,7 @@ export default function SignInPage() {
       <div className="mb-8 text-center">
         <h1 className="text-2xl font-semibold tracking-tight">Assignment Reminders</h1>
         <p className="mt-1.5 text-sm text-ink-muted">
-          Sign in with the owner email to continue.
+          Sign in to manage your assignments and reminders.
         </p>
       </div>
       <Suspense>

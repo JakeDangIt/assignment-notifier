@@ -1,5 +1,4 @@
 import { createNeonAuth } from "@neondatabase/auth/next/server";
-import { isOwnerEmail } from "@/lib/owner";
 
 /**
  * Neon Auth (Managed Better Auth) server instance.
@@ -19,17 +18,3 @@ export const auth = createNeonAuth({
         : FALLBACK_COOKIE_SECRET,
   },
 });
-
-export { isOwnerEmail, normalizeEmail } from "@/lib/owner";
-
-export type OwnerSession = {
-  email: string;
-};
-
-/** Neon session whose email matches OWNER_EMAIL. */
-export async function getOwnerSession(): Promise<OwnerSession | null> {
-  const { data: session } = await auth.getSession();
-  const email = session?.user?.email;
-  if (!email || !isOwnerEmail(email)) return null;
-  return { email };
-}

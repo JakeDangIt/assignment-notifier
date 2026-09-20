@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { ok, route } from "@/lib/api";
 import { getSettings, serializeSettings, updateSettings } from "@/lib/settings";
+import { requireAppUser } from "@/lib/session";
 
 const timeSchema = z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/);
 
@@ -31,14 +32,16 @@ function assertTimeZone(timezone: string) {
 }
 
 export const GET = route(async () => {
-  return ok({ settings: serializeSettings(await getSettings()) });
+  const user = await requireAppUser();
+  return ok({ settings: serializeSettings(await getSettings(user.id)) });
 });
 
 export const PUT = route(async (request: Request) => {
+  const user = await requireAppUser();
   const input = patchSchema.parse(await request.json());
   assertTimeZone(input.timezone);
 
-  const row = await updateSettings({
+  const row = await updateSettings(user.id, {
     timezone: input.timezone,
     quietEnabled: input.quietEnabled,
     quietStartLocal: withSeconds(input.quietStartLocal),
