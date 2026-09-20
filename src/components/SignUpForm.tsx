@@ -1,14 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button, Input, Label } from "@/components/ui";
 import { authClient } from "@/lib/auth-client";
 
-export function LoginForm() {
+export function SignUpForm() {
   const router = useRouter();
-  const searchParams = useSearchParams();
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -20,18 +20,18 @@ export function LoginForm() {
     setError(null);
 
     try {
-      const { error: signInError } = await authClient.signIn.email({
+      const { error: signUpError } = await authClient.signUp.email({
+        name: name.trim() || email.split("@")[0] || "Owner",
         email,
         password,
       });
 
-      if (signInError) {
-        setError(signInError.message || "Sign in failed");
+      if (signUpError) {
+        setError(signUpError.message || "Could not create the account");
         return;
       }
 
-      const next = searchParams.get("next");
-      router.replace(next && next.startsWith("/") ? next : "/");
+      router.replace("/");
       router.refresh();
     } catch {
       setError("Network error. Check your connection.");
@@ -43,6 +43,18 @@ export function LoginForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
       <div>
+        <Label htmlFor="name">Name</Label>
+        <Input
+          id="name"
+          type="text"
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          placeholder="Your name"
+          autoComplete="name"
+          autoFocus
+        />
+      </div>
+      <div>
         <Label htmlFor="email">Email</Label>
         <Input
           id="email"
@@ -51,7 +63,6 @@ export function LoginForm() {
           onChange={(event) => setEmail(event.target.value)}
           placeholder="you@example.com"
           autoComplete="email"
-          autoFocus
           required
           aria-invalid={Boolean(error)}
         />
@@ -63,8 +74,9 @@ export function LoginForm() {
           type="password"
           value={password}
           onChange={(event) => setPassword(event.target.value)}
-          placeholder="Password"
-          autoComplete="current-password"
+          placeholder="At least 8 characters"
+          autoComplete="new-password"
+          minLength={8}
           required
           aria-invalid={Boolean(error)}
         />
@@ -76,14 +88,18 @@ export function LoginForm() {
         </p>
       ) : null}
 
-      <Button type="submit" className="w-full" disabled={pending || !email || !password}>
-        {pending ? "Signing in…" : "Sign in"}
+      <Button
+        type="submit"
+        className="w-full"
+        disabled={pending || !email || password.length < 8}
+      >
+        {pending ? "Creating account…" : "Create account"}
       </Button>
 
       <p className="text-center text-sm text-ink-muted">
-        Need an account?{" "}
-        <Link href="/auth/sign-up" className="text-ink underline-offset-2 hover:underline">
-          Sign up
+        Already have an account?{" "}
+        <Link href="/auth/sign-in" className="text-ink underline-offset-2 hover:underline">
+          Sign in
         </Link>
       </p>
     </form>

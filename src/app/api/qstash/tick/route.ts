@@ -1,4 +1,4 @@
-import { fail, ok, requireSession, route } from "@/lib/api";
+import { ok, requireSession, route } from "@/lib/api";
 import { verifyQstashSignature } from "@/lib/qstash";
 import { runTick } from "@/lib/tick";
 
@@ -10,8 +10,10 @@ export const POST = route(
     const signed = await verifyQstashSignature(request, bodyText);
 
     if (!signed) {
+      // Owner UI (Run tick) authenticates with a Neon session. QStash itself
+      // never has a session — it must present a valid upstash-signature.
       const unauthorized = await requireSession();
-      if (unauthorized) return fail(401, "Unauthorized");
+      if (unauthorized) return unauthorized;
     }
 
     const result = await runTick();

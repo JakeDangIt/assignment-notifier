@@ -1,75 +1,35 @@
-import { SignJWT, jwtVerify } from "jose";
+import { createNeonAuth } from "@neondatabase/auth/next/server";
+import { isOwnerEmail } from "@/lib/owner";
 
 /**
- * Minimal single-user auth: one shared passcode exchanged for a long-lived
- * signed session cookie. There are no user records because there is exactly
- * one user; anything more would be scaffolding with no payload.
+ * Neon Auth (Managed Better Auth) server instance.
  *
- * Everything here is Edge-runtime safe (jose + Web Crypto only) so the same
- * helpers work in middleware and in route handlers.
+ * `createNeonAuth` requires a 32+ character cookie secret at init, so missing
+ * env during `next build` gets a placeholder. Middleware and `requireSession`
+ * still fail closed when the real values are absent at runtime.
  */
+const FALLBACK_COOKIE_SECRET = "unconfigured-neon-auth-cookie-secret!";
 
-export const SESSION_COOKIE = "ar_session";
+export const auth = createNeonAuth({
+  baseUrl: process.env.NEON_AUTH_BASE_URL ?? "https://unconfigured.invalid/neondb/auth",
+  cookies: {
+    secret:
+      process.env.NEON_AUTH_COOKIE_SECRET && process.env.NEON_AUTH_COOKIE_SECRET.length >= 32
+        ? process.env.NEON_AUTH_COOKIE_SECRET
+        : FALLBACK_COOKIE_SECRET,
+  },
+});
 
-/** 90 days: long enough that an installed PWA effectively stays logged in. */
-export const SESSION_MAX_AGE_SECONDS = 90 * 24 * 60 * 60;
+export { isOwnerEmail, normalizeEmail } from "@/lib/owner";
 
-const ISSUER = "assignment-reminders";
-const SUBJECT = "owner";
+export type OwnerSession = {
+  email: string;
+};
 
-function secretKey(secret: string): Uint8Array {
-  return new TextEncoder().encode(secret);
-}
-
-export async function createSessionToken(secret: string): Promise<string> {
-  const now = Math.floor(Date.now() / 1000);
-
-  return new SignJWT({})
-    .setProtectedHeader({ alg: "HS256" })
-    .setSubject(SUBJECT)
-    .setIssuer(ISSUER)
-    .setIssuedAt(now)
-    .setExpirationTime(now + SESSION_MAX_AGE_SECONDS)
-    .sign(secretKey(secret));
-}
-
-export async function verifySessionToken(
-  token: string | undefined,
-  secret: string,
-): Promise<boolean> {
-  if (!token) return false;
-
-  try {
-    const { payload } = await jwtVerify(token, secretKey(secret), {
-      issuer: ISSUER,
-      subject: SUBJECT,
-    });
-    return Boolean(payload.sub);
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Compares two strings in time independent of where they first differ, so the
- * passcode endpoint doesn't leak a prefix oracle.
- *
- * Length is compared by hashing to a fixed-size digest first, because a naive
- * loop over differing lengths is itself a timing signal.
- */
-export async function constantTimeEquals(a: string, b: string): Promise<boolean> {
-  const encoder = new TextEncoder();
-  const [digestA, digestB] = await Promise.all([
-    crypto.subtle.digest("SHA-256", encoder.encode(a)),
-    crypto.subtle.digest("SHA-256", encoder.encode(b)),
-  ]);
-
-  const viewA = new Uint8Array(digestA);
-  const viewB = new Uint8Array(digestB);
-
-  let diff = 0;
-  for (let i = 0; i < viewA.length; i++) {
-    diff |= viewA[i] ^ viewB[i];
-  }
-  return diff === 0;
+/** Neon session whose email matches OWNER_EMAIL. */
+export async function getOwnerSession(): Promise<OwnerSession | null> {
+  const { data: session } = await auth.getSession();
+  const email = session?.user?.email;
+  if (!email || !isOwnerEmail(email)) return null;
+  return { email };
 }
